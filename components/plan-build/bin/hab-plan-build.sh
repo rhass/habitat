@@ -2120,9 +2120,9 @@ _build_metadata() {
   # is not in the resulting MANIFEST because MANIFEST is included!
   pushd "$HAB_CACHE_SRC_PATH/$pkg_dirname" > /dev/null
   build_line "Generating blake2b hashes of all files in the package"
-  find $pkg_prefix -type f \
-    | $_sort_cmd \
-    | hab pkg hash > ${pkg_name}_blake2bsums
+  for var in $(find $pkg_prefix -type f | $_sort_cmd); do
+    hab pkg hash $var > ${pkg_name}_blake2bsums
+  done
 
   build_line "Generating signed metadata FILES"
   $HAB_BIN pkg sign --origin $pkg_origin ${pkg_name}_blake2bsums $pkg_prefix/FILES
