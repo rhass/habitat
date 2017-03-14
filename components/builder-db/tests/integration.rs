@@ -27,6 +27,7 @@ mod pool {
                            1,
                            300,
                            Duration::from_secs(3600),
+                           vec![0],
                            false)
                 .expect("Failed to create pool");
     }

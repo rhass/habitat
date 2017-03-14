@@ -27,7 +27,11 @@ impl MusicDB {
     }
 
     fn setup(&self) -> Result<()> {
-        let mut migrator = Migrator::new(&self.pool);
+        let conn = self.pool.get_raw().expect("cannot get database connection");
+        let xact = conn.transaction().expect("cannot open transaction");
+        let mut migrator = Migrator::new(xact, vec![0, 1]);
+        migrator.test_number = self.pool.test_number;
+        migrator.testing = true;
         migrator.setup()?;
         migrator.migrate("music",
                          r#"CREATE TABLE IF NOT EXISTS music (
@@ -45,18 +49,19 @@ impl MusicDB {
                             INSERT INTO music (band, style) VALUES (band, style);
                          END
                          $$ LANGUAGE plpgsql VOLATILE"#)?;
+        migrator.finish();
         Ok(())
     }
 
     fn insert_band(&self, band: &str, style: &str) -> Result<()> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get_shard(0)?;
         conn.execute("SELECT insert_band_v1($1, $2)", &[&band, &style])
             .map_err(Error::FunctionRun)?;
         Ok(())
     }
 
     fn get_metal_bands(&self) -> Result<Vec<String>> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get_shard(0)?;
         let results = conn.query("SELECT band FROM metal_bands", &[]).map_err(Error::FunctionRun)?;
         Ok(results.into_iter().map(|r| r.get(0)).collect())
     }

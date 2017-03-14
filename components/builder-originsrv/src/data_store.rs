@@ -16,7 +16,7 @@
 
 use db::pool::Pool;
 use db::migration::Migrator;
-use protocol::originsrv;
+use protocol::{originsrv, ShardId};
 use postgres;
 use protobuf;
 
@@ -35,7 +35,7 @@ impl DataStore {
                              config.pool_size,
                              config.datastore_connection_retry_ms,
                              config.datastore_connection_timeout,
-                             config.datastore_connection_test)?;
+                             config.shards.clone())?;
         Ok(DataStore { pool: pool })
     }
 
@@ -44,21 +44,24 @@ impl DataStore {
     }
 
     pub fn setup(&self) -> Result<()> {
-        let mut migrator = Migrator::new(&self.pool);
+        let conn = self.pool.get_raw()?;
+        let xact = conn.transaction().map_err(Error::DbTransactionStart)?;
+        let mut migrator = Migrator::new(xact, self.pool.shards.clone());
+
         migrator.setup()?;
 
-        // The order here matters. Once you have deployed the software, you can never change it.
-        migrations::next_id::migrate(&mut migrator)?;
         migrations::origins::migrate(&mut migrator)?;
         migrations::origin_secret_keys::migrate(&mut migrator)?;
         migrations::origin_invitations::migrate(&mut migrator)?;
         migrations::origin_projects::migrate(&mut migrator)?;
 
+        migrator.finish()?;
+
         Ok(())
     }
 
     pub fn update_origin_project(&self, opc: &originsrv::OriginProjectUpdate) -> Result<()> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(opc)?;
         let project = opc.get_project();
         conn.execute("SELECT update_origin_project_v1($1, $2, $3, $4, $5, $6, $7)",
                      &[&(project.get_id() as i64),
@@ -73,7 +76,7 @@ impl DataStore {
     }
 
     pub fn delete_origin_project_by_name(&self, name: &str) -> Result<()> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get_raw()?;
         conn.execute("SELECT delete_origin_project_v1($1)", &[&name])
             .map_err(Error::OriginProjectDelete)?;
         Ok(())
@@ -82,7 +85,7 @@ impl DataStore {
     pub fn get_origin_project_by_name(&self,
                                       name: &str)
                                       -> Result<Option<originsrv::OriginProject>> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get_raw()?;
         let rows = &conn.query("SELECT * FROM get_origin_project_v1($1)", &[&name])
                         .map_err(Error::OriginProjectGet)?;
         if rows.len() != 0 {
@@ -113,7 +116,7 @@ impl DataStore {
     pub fn create_origin_project(&self,
                                  opc: &originsrv::OriginProjectCreate)
                                  -> Result<originsrv::OriginProject> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(opc)?;
         let project = opc.get_project();
         let rows = conn.query("SELECT * FROM insert_origin_project_v1($1, $2, $3, $4, $5, $6)",
                               &[&project.get_origin_name(),
@@ -133,7 +136,7 @@ impl DataStore {
                                                             origin_name: &str,
                                                             account_id: i64)
                                                             -> Result<bool> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get_raw()?;
         let rows = &conn.query("SELECT * FROM check_account_in_origin_members_v1($1, $2)",
                                &[&origin_name, &account_id])
                         .map_err(Error::OriginAccountInOrigin)?;
@@ -143,7 +146,7 @@ impl DataStore {
     pub fn check_account_in_origin(&self,
                                    coar: &originsrv::CheckOriginAccessRequest)
                                    -> Result<bool> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(coar)?;
         let rows = &conn.query("SELECT * FROM check_account_in_origin_members_v1($1, $2)",
                                &[&coar.get_origin_name(), &(coar.get_account_id() as i64)])
                         .map_err(Error::OriginAccountInOrigin)?;
@@ -153,7 +156,7 @@ impl DataStore {
     pub fn list_origins_by_account(&self,
                                    aolr: &originsrv::AccountOriginListRequest)
                                    -> Result<originsrv::AccountOriginListResponse> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(aolr)?;
         let rows = &conn.query("SELECT * FROM list_origin_by_account_id($1)",
                                &[&(aolr.get_account_id() as i64)])
                         .map_err(Error::OriginAccountList)?;
@@ -170,7 +173,7 @@ impl DataStore {
     pub fn list_origin_members(&self,
                                omlr: &originsrv::OriginMemberListRequest)
                                -> Result<originsrv::OriginMemberListResponse> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(omlr)?;
         let rows = &conn.query("SELECT * FROM list_origin_members_v1($1)",
                                &[&(omlr.get_origin_id() as i64)])
                         .map_err(Error::OriginMemberList)?;
@@ -190,7 +193,7 @@ impl DataStore {
     pub fn validate_origin_invitation(&self,
                                       oiar: &originsrv::OriginInvitationValidateRequest)
                                       -> Result<originsrv::OriginInvitationValidateResponse> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(oiar)?;
         let rows = &conn.query("SELECT * FROM validate_origin_invitation_v1($1, $2)",
                                &[&(oiar.get_invite_id() as i64),
                                  &(oiar.get_account_accepting_request() as i64)])
@@ -207,7 +210,7 @@ impl DataStore {
     pub fn accept_origin_invitation(&self,
                                     oiar: &originsrv::OriginInvitationAcceptRequest)
                                     -> Result<()> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(oiar)?;
         let tr = conn.transaction().map_err(Error::DbTransactionStart)?;
         tr.execute("SELECT * FROM accept_origin_invitation_v1($1, $2)",
                      &[&(oiar.get_invite_id() as i64), &oiar.get_ignore()])
@@ -220,7 +223,7 @@ impl DataStore {
         (&self,
          oilr: &originsrv::AccountInvitationListRequest)
          -> Result<Option<Vec<originsrv::OriginInvitation>>> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(oilr)?;
         let rows = &conn.query("SELECT * FROM get_origin_invitations_for_account_v1($1)",
                                &[&(oilr.get_account_id() as i64)])
                         .map_err(Error::OriginInvitationListForAccount)?;
@@ -239,7 +242,7 @@ impl DataStore {
         (&self,
          oilr: &originsrv::OriginInvitationListRequest)
          -> Result<originsrv::OriginInvitationListResponse> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(oilr)?;
         let rows = &conn.query("SELECT * FROM get_origin_invitations_for_origin_v1($1)",
                                &[&(oilr.get_origin_id() as i64)])
                         .map_err(Error::OriginInvitationListForOrigin)?;
@@ -272,7 +275,7 @@ impl DataStore {
     pub fn create_origin_invitation(&self,
                                     oic: &originsrv::OriginInvitationCreate)
                                     -> Result<Option<originsrv::OriginInvitation>> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(oic)?;
         let rows = conn.query("SELECT * FROM insert_origin_invitation_v1($1, $2, $3, $4, $5)",
                               &[&(oic.get_origin_id() as i64),
                                 &oic.get_origin_name(),
@@ -291,7 +294,7 @@ impl DataStore {
     pub fn create_origin_secret_key(&self,
                                     osk: &originsrv::OriginSecretKeyCreate)
                                     -> Result<originsrv::OriginSecretKey> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(osk)?;
         let rows = conn.query("SELECT * FROM insert_origin_secret_key_v1($1, $2, $3, $4, $5, $6)",
                               &[&(osk.get_origin_id() as i64),
                                 &(osk.get_owner_id() as i64),
@@ -321,7 +324,7 @@ impl DataStore {
     pub fn get_origin_secret_key(&self,
                                  osk_get: &originsrv::OriginSecretKeyGet)
                                  -> Result<Option<originsrv::OriginSecretKey>> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(osk_get)?;
         let rows = &conn.query("SELECT * FROM get_origin_secret_key_v1($1)",
                                &[&osk_get.get_origin()])
                         .map_err(Error::OriginSecretKeyGet)?;
@@ -351,7 +354,7 @@ impl DataStore {
     pub fn create_origin(&self,
                          origin: &originsrv::OriginCreate)
                          -> Result<Option<originsrv::Origin>> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get(origin)?;
         let rows = conn.query("SELECT * FROM insert_origin_v1($1, $2, $3)",
                               &[&origin.get_name(),
                                 &(origin.get_owner_id() as i64),
@@ -372,7 +375,7 @@ impl DataStore {
     }
 
     pub fn get_origin_by_name(&self, origin_name: &str) -> Result<Option<originsrv::Origin>> {
-        let conn = self.pool.get()?;
+        let conn = self.pool.get_raw()?;
         let rows =
             &conn.query("SELECT * FROM origins_with_secret_key_full_name_v1 WHERE name = $1 LIMIT \
                         1",

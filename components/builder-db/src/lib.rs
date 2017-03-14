@@ -61,12 +61,17 @@
 //! 1. Q: But what about those horror stories? A: The horror stories are about encoding your business logic in the database. For example, doing complex transformations on the data, or map reducing it, or all kinds of other crazy business. Both our application and our access patterns mean we likely won't need to do a whole lot of that.
 //!
 
+extern crate fnv;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate lazy_static;
 extern crate num_cpus;
 extern crate postgres;
+extern crate rand;
 extern crate r2d2;
 extern crate r2d2_postgres;
+extern crate habitat_builder_protocol as protocol;
 
 pub mod config;
 pub mod error;

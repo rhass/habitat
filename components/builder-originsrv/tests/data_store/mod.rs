@@ -16,51 +16,35 @@ use protocol::originsrv;
 use originsrv::data_store::DataStore;
 
 #[test]
-fn migration() {
-    with_pool!(pool, {
-        let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-        ds.setup().expect("Failed to migrate data");
-    });
-}
-
-#[test]
-fn create_origin() {
-    with_pool!(pool, {
-        let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-        ds.setup().expect("Failed to migrate data");
-        let mut origin = originsrv::OriginCreate::new();
-        origin.set_name(String::from("neurosis"));
-        origin.set_owner_id(1);
-        origin.set_owner_name(String::from("scottkelly"));
-        ds.create_origin(&origin).expect("Should create origin");
-    });
+fn create_origin_poop() {
+    let ds = datastore_test!(DataStore);
+    let mut origin = originsrv::OriginCreate::new();
+    origin.set_name(String::from("neurosis"));
+    origin.set_owner_id(1);
+    origin.set_owner_name(String::from("scottkelly"));
+    ds.create_origin(&origin).expect("Should create origin");
 }
 
 #[test]
 fn get_origin_by_name() {
-    with_pool!(pool, {
-        let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-        ds.setup().expect("Failed to migrate data");
-        let mut origin = originsrv::OriginCreate::new();
-        origin.set_name(String::from("neurosis"));
-        origin.set_owner_id(1);
-        origin.set_owner_name(String::from("scottkelly"));
-        ds.create_origin(&origin).expect("Should create origin");
+    let ds = datastore_test!(DataStore);
+    let mut origin = originsrv::OriginCreate::new();
+    origin.set_name(String::from("neurosis"));
+    origin.set_owner_id(1);
+    origin.set_owner_name(String::from("scottkelly"));
+    ds.create_origin(&origin).expect("Should create origin");
 
-        let new_origin = ds.get_origin_by_name("neurosis").expect("Could not get the origin");
-        assert!(new_origin.is_some(), "Origin did not exist");
-        let fg = new_origin.unwrap();
-        assert_eq!(fg.get_name(), "neurosis");
-        assert_eq!(fg.get_owner_id(), 1);
-        assert_eq!(fg.get_private_key_name(), "");
-    });
+    let new_origin = ds.get_origin_by_name("neurosis").expect("Could not get the origin");
+    assert!(new_origin.is_some(), "Origin did not exist");
+    let fg = new_origin.unwrap();
+    assert_eq!(fg.get_name(), "neurosis");
+    assert_eq!(fg.get_owner_id(), 1);
+    assert_eq!(fg.get_private_key_name(), "");
 }
 
 #[test]
 fn create_origin_secret_key() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -97,9 +81,7 @@ fn create_origin_secret_key() {
 
 #[test]
 fn get_origin_secret_key() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -136,9 +118,7 @@ fn get_origin_secret_key() {
 
 #[test]
 fn create_origin_invitation() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -164,7 +144,7 @@ fn create_origin_invitation() {
         .expect("Failed to create the origin invitation again, which should be a no-op");
 
     // We should never create an invitation for the same person and org
-    let conn = ds.pool.get().expect("Cannot get connection from pool");
+    let conn = ds.pool.get(&oic).expect("Cannot get connection from pool");
     let rows = conn.query("SELECT COUNT(*) FROM origin_invitations", &[])
         .expect("Failed to query database for number of invitations");
     let count: i64 = rows.iter()
@@ -176,9 +156,7 @@ fn create_origin_invitation() {
 
 #[test]
 fn list_origin_invitations_for_origin() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -234,9 +212,7 @@ fn list_origin_invitations_for_origin() {
 
 #[test]
 fn list_origin_invitations_for_account() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -295,9 +271,7 @@ fn list_origin_invitations_for_account() {
 
 #[test]
 fn accept_origin_invitation() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -379,9 +353,7 @@ fn accept_origin_invitation() {
 
 #[test]
 fn check_account_in_origin() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -402,17 +374,17 @@ fn check_account_in_origin() {
 
 #[test]
 fn create_origin_project() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
     origin.set_owner_name(String::from("scottkelly"));
-    ds.create_origin(&origin).expect("Should create origin");
+    let neurosis =
+        ds.create_origin(&origin).expect("Should create origin").expect("Should return the origin");
 
     let mut op = originsrv::OriginProject::new();
-    op.set_origin_name(String::from("neurosis"));
+    op.set_origin_name(String::from(neurosis.get_name()));
+    op.set_origin_id(neurosis.get_id());
     op.set_package_name(String::from("zeal"));
     op.set_plan_path(String::from("foo"));
     op.set_vcs_type(String::from("git"));
@@ -427,21 +399,17 @@ fn create_origin_project() {
 
 #[test]
 fn get_origin_project_by_name() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
     origin.set_owner_name(String::from("scottkelly"));
-    ds.create_origin(&origin).expect("Should create origin");
-
-    let neurosis = ds.get_origin_by_name("neurosis")
-        .expect("Could not retrieve origin")
-        .expect("Origin does not exist");
+    let neurosis =
+        ds.create_origin(&origin).expect("Should create origin").expect("Should return the origin");
 
     let mut op = originsrv::OriginProject::new();
-    op.set_origin_name(String::from("neurosis"));
+    op.set_origin_name(String::from(neurosis.get_name()));
+    op.set_origin_id(neurosis.get_id());
     op.set_package_name(String::from("zeal"));
     op.set_plan_path(String::from("foo"));
     op.set_vcs_type(String::from("git"));
@@ -483,9 +451,7 @@ fn get_origin_project_by_name() {
 
 #[test]
 fn delete_origin_project_by_name() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -497,6 +463,7 @@ fn delete_origin_project_by_name() {
         .expect("Origin does not exist");
 
     let mut op = originsrv::OriginProject::new();
+    op.set_origin_id(neurosis.get_id());
     op.set_origin_name(String::from("neurosis"));
     op.set_package_name(String::from("zeal"));
     op.set_plan_path(String::from("foo"));
@@ -519,9 +486,7 @@ fn delete_origin_project_by_name() {
 
 #[test]
 fn update_origin_project() {
-    let pool = pool!();
-    let ds = DataStore::from_pool(pool).expect("Failed to create data store from pool");
-    ds.setup().expect("Failed to migrate data");
+    let ds = datastore_test!(DataStore);
     let mut origin = originsrv::OriginCreate::new();
     origin.set_name(String::from("neurosis"));
     origin.set_owner_id(1);
@@ -533,6 +498,7 @@ fn update_origin_project() {
         .expect("Origin does not exist");
 
     let mut op = originsrv::OriginProject::new();
+    op.set_origin_id(neurosis.get_id());
     op.set_origin_name(String::from("neurosis"));
     op.set_package_name(String::from("zeal"));
     op.set_plan_path(String::from("foo"));

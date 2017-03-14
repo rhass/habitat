@@ -10,8 +10,14 @@ log = "*"
 r2d2 = "*"
 time = "*"
 postgres = "*"
+rand = "*"
 r2d2_postgres = "*"
 num_cpus = "*"
+fnv = "*"
+lazy_static = "*"
+
+[dependencies.habitat_builder_protocol]
+path = "../builder-protocol"
 
 [features]
 functional = []

@@ -37,10 +37,10 @@ impl Routable for OriginGet {
 }
 
 impl Routable for OriginCreate {
-    type H = InstaId;
+    type H = String;
 
     fn route_key(&self) -> Option<Self::H> {
-        Some(InstaId(self.get_owner_id()))
+        Some(self.get_name().to_string())
     }
 }
 
@@ -113,24 +113,24 @@ impl Routable for OriginSecretKeyCreate {
     type H = InstaId;
 
     fn route_key(&self) -> Option<Self::H> {
-        Some(InstaId(self.get_owner_id()))
+        Some(InstaId(self.get_origin_id()))
     }
 }
 
 impl Routable for OriginSecretKeyGet {
-    type H = InstaId;
+    type H = String;
 
     fn route_key(&self) -> Option<Self::H> {
-        Some(InstaId(self.get_owner_id()))
+        Some(String::from(self.get_origin()))
     }
 }
 
 impl Routable for OriginInvitationCreate {
-    type H = u64;
+    type H = InstaId;
 
     fn route_key(&self) -> Option<Self::H> {
         // TODO:
-        Some(self.get_owner_id())
+        Some(InstaId(self.get_origin_id()))
     }
 }
 
@@ -191,20 +191,20 @@ impl Serialize for AccountInvitationListResponse {
 }
 
 impl Routable for OriginInvitationListRequest {
-    type H = u64;
+    type H = InstaId;
 
     fn route_key(&self) -> Option<Self::H> {
         // TODO:
-        Some(self.get_origin_id())
+        Some(InstaId(self.get_origin_id()))
     }
 }
 
 impl Routable for OriginInvitationListResponse {
-    type H = u64;
+    type H = InstaId;
 
     fn route_key(&self) -> Option<Self::H> {
         // TODO:
-        Some(self.get_origin_id())
+        Some(InstaId(self.get_origin_id()))
     }
 }
 
@@ -260,11 +260,11 @@ impl Serialize for AccountOriginListResponse {
 }
 
 impl Routable for CheckOriginAccessRequest {
-    type H = u64;
+    type H = InstaId;
 
     fn route_key(&self) -> Option<Self::H> {
         // TODO:
-        Some(self.get_account_id())
+        Some(InstaId(self.get_origin_id()))
     }
 }
 
@@ -272,7 +272,16 @@ impl Routable for OriginProjectGet {
     type H = String;
 
     fn route_key(&self) -> Option<Self::H> {
-        Some(String::from(self.get_name()))
+        let name = self.get_name();
+        let origin_name = match name.split('/').nth(0) {
+            Some(origin_name) => origin_name,
+            None => {
+                println!("Cannot route origin project get; malformed project name - routing on \
+                        screwedup to not kill the service");
+                "screwedup"
+            }
+        };
+        Some(String::from(origin_name))
     }
 }
 
@@ -285,10 +294,10 @@ impl Routable for OriginProjectCreate {
 }
 
 impl Routable for OriginProjectUpdate {
-    type H = String;
+    type H = InstaId;
 
     fn route_key(&self) -> Option<Self::H> {
-        Some(String::from(self.get_project().get_origin_name()))
+        Some(InstaId(self.get_project().get_origin_id()))
     }
 }
 
@@ -296,7 +305,16 @@ impl Routable for OriginProjectDelete {
     type H = String;
 
     fn route_key(&self) -> Option<Self::H> {
-        Some(String::from(self.get_name()))
+        let name = self.get_name();
+        let origin_name = match name.split('/').nth(0) {
+            Some(origin_name) => origin_name,
+            None => {
+                println!("Cannot route origin project get; malformed project name - routing on \
+                        screwedup to not kill the service");
+                "screwedup"
+            }
+        };
+        Some(String::from(origin_name))
     }
 }
 
