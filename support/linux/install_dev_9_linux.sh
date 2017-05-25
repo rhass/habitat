@@ -1,12 +1,28 @@
 #!/bin/sh
 set -eux
 
+case "$(uname -p)" in
+  aarch64|armhf)
+    TARGET="armv7-unknown-linux-musleabihf"
+    ;;
+  *)
+    TARGET="x86_64-unknown-linux-musl"
+    ;;
+esac
+
 # Install Rust and musl libc target
 curl -sSf https://sh.rustup.rs \
   | env -u CARGO_HOME sh -s -- -y --default-toolchain stable
 . $HOME/.cargo/env
-env -u CARGO_HOME rustup target add x86_64-unknown-linux-musl
+env -u CARGO_HOME rustup target add "$TARGET"
 env -u CARGO_HOME cargo install protobuf
+
+cat <<EOF
+*****************************************************
+Current Environment
+*****************************************************
+EOF
+env
 rustc --version
 cargo --version
 
@@ -19,8 +35,11 @@ elif [ -f /etc/lsb-release ] \
     && [ "$(. /etc/lsb-release; echo $DISTRIB_DESCRIPTION)" = "Ubuntu 16.10" ]; then
   # Until there is a 1.13 release, there is no stable Docker package for Yakkety :/
   curl -sSL https://test.docker.com | sudo -E sh
+#elif [ "$APTGET_DOCKER" = "true" ] && [ -f /etc/lsb-release ]; then
 else
-  curl -sSL https://get.docker.io | sudo -E sh
+##### HACK HACK HACK HACK
+  sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io
+#  curl -sSL https://get.docker.io | sudo -E sh
 fi
 docker --version
 

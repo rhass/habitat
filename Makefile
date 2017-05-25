@@ -11,6 +11,7 @@ else ifeq ($(UNAME_S),Darwin)
 endif
 
 ifeq ($(IN_DOCKER),true)
+	arch := $(shell uname -p)
 	build_args := --build-arg HAB_DEPOT_URL=$(HAB_DEPOT_URL)
 	run_args := -e HAB_DEPOT_URL=$(HAB_DEPOT_URL)
 	run_args := $(run_args) -e HAB_ORIGIN=$(HAB_ORIGIN)
@@ -22,6 +23,12 @@ ifeq ($(IN_DOCKER),true)
 		build_args := $(build_args) --build-arg https_proxy="${https_proxy}"
 		run_args := $(run_args) -e https_proxy="${https_proxy}"
 	endif
+
+	ifeq ($(arch),aarch64)
+		build_args := $(build_args) -f Dockerfile.aarch64
+	else
+		build_args := $(build_args) -f Dockerfile
+        endif
 
 	dimage := habitat/devshell
 	docker_cmd := env http_proxy= https_proxy= docker
